@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Resume Aligner</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171d2b; --panel-2:#1e2637; --border:#2b3550;
+    --text:#e7ecf5; --muted:#9aa6bf; --accent:#6d8bff; --accent-2:#4f6fe8;
+    --good:#37c98a; --mid:#f2b64c; --bad:#f2685c; --field:#0d1220;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#eef1f7; --panel:#ffffff; --panel-2:#f4f6fb; --border:#dfe4ee;
+      --text:#141a26; --muted:#5b667d; --accent:#3a5bff; --accent-2:#2f4ce0;
+      --field:#ffffff; --shadow:0 8px 24px rgba(30,45,90,.10);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:24px 20px 64px}
+  header.app{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:8px}
+  .brand{display:flex; align-items:center; gap:12px}
+  .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-size:20px}
+  h1{font-size:20px; margin:0; letter-spacing:.2px}
+  .sub{color:var(--muted); font-size:13px; margin-top:2px}
+
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow)}
+  .settings{padding:16px; margin:16px 0}
+  .settings-grid{display:grid; grid-template-columns:220px 1fr 240px; gap:12px; align-items:end}
+  @media (max-width:820px){ .settings-grid{grid-template-columns:1fr} }
+  label.fld{display:block; font-size:12px; color:var(--muted); margin-bottom:6px; font-weight:600; letter-spacing:.3px; text-transform:uppercase}
+  input[type=password],input[type=text],select,textarea{
+    width:100%; background:var(--field); color:var(--text); border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px; font-size:14px; font-family:inherit; outline:none;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(109,139,255,.18)}
+  .key-row{display:flex; gap:8px}
+  .key-row input{flex:1}
+  .hint{font-size:12px; color:var(--muted); margin-top:8px}
+  .hint a{color:var(--accent)}
+  .keywrap.hidden{display:none}
+  .ollama-note{font-size:12.5px; color:var(--muted); margin-top:8px; background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:10px 12px}
+  .ollama-note.hidden{display:none}
+  code{background:var(--panel-2); border:1px solid var(--border); padding:1px 6px; border-radius:6px; font-size:12px}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+  .field-card{padding:14px}
+  .field-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px}
+  .field-head h2{font-size:14px; margin:0}
+  .count{font-size:12px; color:var(--muted)}
+  textarea{min-height:300px; resize:vertical; line-height:1.5}
+
+  .actions{display:flex; gap:12px; align-items:center; margin:18px 0; flex-wrap:wrap}
+  button{font-family:inherit; cursor:pointer; border:none; border-radius:10px; font-size:14px; font-weight:600}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; padding:12px 22px; box-shadow:var(--shadow)}
+  .btn-primary:disabled{opacity:.55; cursor:not-allowed}
+  .btn-ghost{background:var(--panel-2); color:var(--text); border:1px solid var(--border); padding:10px 16px}
+  .btn-sm{padding:7px 12px; font-size:13px}
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-3px;margin-right:8px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .status{font-size:13px; color:var(--muted)}
+  .error{background:rgba(242,104,92,.12); border:1px solid rgba(242,104,92,.45); color:var(--bad); padding:12px 14px; border-radius:10px; font-size:14px; white-space:pre-wrap}
+
+  #results{margin-top:24px; display:none}
+  .score-card{padding:20px; display:flex; gap:22px; align-items:center; margin-bottom:16px; flex-wrap:wrap}
+  .score-ring{--v:0; position:relative; width:118px; height:118px; flex:none; border-radius:50%;
+    background:conic-gradient(var(--ring) calc(var(--v)*1%), var(--border) 0);
+    display:flex; align-items:center; justify-content:center}
+  .score-ring::after{content:""; position:absolute; inset:10px; border-radius:50%; background:var(--panel)}
+  .score-num{position:relative; z-index:1; text-align:center}
+  .score-num b{font-size:32px; display:block; line-height:1}
+  .score-num span{font-size:12px; color:var(--muted)}
+  .score-meta{flex:1; min-width:220px}
+  .score-meta h3{margin:0 0 6px; font-size:16px}
+  .score-meta p{margin:0; color:var(--muted); font-size:14px}
+
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px}
+  @media (max-width:860px){ .cols{grid-template-columns:1fr} }
+  .box{padding:16px}
+  .box h3{margin:0 0 10px; font-size:14px; display:flex; align-items:center; gap:8px}
+  .chips{display:flex; flex-wrap:wrap; gap:7px}
+  .chip{font-size:12.5px; padding:5px 10px; border-radius:20px; border:1px solid var(--border)}
+  .chip.good{background:rgba(55,201,138,.12); border-color:rgba(55,201,138,.4); color:var(--good)}
+  .chip.bad{background:rgba(242,182,76,.12); border-color:rgba(242,182,76,.45); color:var(--mid)}
+  .chip.selectable{cursor:pointer; transition:background .12s,border-color .12s,color .12s}
+  .chip.selectable:hover{border-color:var(--accent)}
+  .chip.selectable.selected{background:rgba(55,201,138,.18); border-color:rgba(55,201,138,.6); color:var(--good)}
+  .chip.selectable.selected::before{content:"✓ "}
+  .addskills{margin-top:12px}
+  .addskills .mini{font-size:12px; color:var(--muted); margin:0 0 8px}
+  .add-row{display:flex; gap:8px}
+  .add-row input{flex:1}
+  ul.list{margin:0; padding-left:18px; font-size:14px} ul.list li{margin-bottom:6px}
+
+  .resume-card{padding:0; overflow:hidden}
+  .resume-head{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:10px}
+  .resume-head h3{margin:0; font-size:15px}
+  /* The preview is rendered as a white "paper" document so it looks like the real resume. */
+  .resume-wrap{padding:22px; background:var(--panel-2); max-height:760px; overflow:auto}
+  .resume-body{background:#fff; color:#1a1a1a; max-width:8.1in; margin:0 auto; padding:0.7in 0.75in;
+    box-shadow:0 4px 18px rgba(0,0,0,.28); border-radius:2px;
+    font-family:Calibri,"Segoe UI",Arial,sans-serif; font-size:14.5px; line-height:1.42}
+  .resume-body h1{font-size:27px;margin:0 0 3px;color:#111;font-weight:700;letter-spacing:.2px}
+  .resume-body h2{font-size:15px;margin:18px 0 7px;color:#111;text-transform:uppercase;letter-spacing:.7px;font-weight:700;border-bottom:1.5px solid #333;padding-bottom:3px}
+  .resume-body h3{font-size:14.5px;margin:11px 0 2px;color:#111;font-weight:700}
+  .resume-body p{margin:3px 0} .resume-body ul{margin:5px 0;padding-left:20px} .resume-body li{margin:3px 0}
+  .resume-body a{color:#1a1a1a;text-decoration:none}
+  .resume-body hr{border:none;border-top:1px solid #bbb;margin:8px 0}
+  .resume-body strong{color:#000}
+  .copied{color:var(--good); font-size:13px; margin-left:8px}
+  footer{margin-top:34px; text-align:center; color:var(--muted); font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <div class="brand">
+      <div class="logo">🎯</div>
+      <div>
+        <h1>Resume Aligner</h1>
+        <div class="sub">Tailor your resume to any job description &amp; get a match score — free &amp; open source, running 100% in your browser.</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Settings -->
+  <div class="card settings">
+    <div class="settings-grid">
+      <div>
+        <label class="fld" for="provider">LLM provider</label>
+        <select id="provider">
+          <option value="gemini">Google Gemini (free)</option>
+          <option value="groq">Groq (free)</option>
+          <option value="openrouter">OpenRouter (free models)</option>
+          <option value="ollama">Ollama (local · fully private)</option>
+          <option value="claude">Anthropic Claude (paid)</option>
+        </select>
+      </div>
+      <div class="keywrap" id="keyWrap">
+        <label class="fld" for="apiKey">API key</label>
+        <div class="key-row">
+          <input id="apiKey" type="password" placeholder="paste your key…" autocomplete="off" spellcheck="false" />
+          <button class="btn-ghost btn-sm" id="toggleKey" type="button" title="Show / hide">👁</button>
+          <button class="btn-ghost btn-sm" id="saveKey" type="button">Save</button>
+        </div>
+      </div>
+      <div>
+        <label class="fld" for="model">Model</label>
+        <input id="model" type="text" spellcheck="false" placeholder="model name" />
+      </div>
+    </div>
+    <div class="hint" id="providerHint"></div>
+    <div class="ollama-note hidden" id="ollamaNote">
+      <strong>Local setup (one time):</strong> install <a href="https://ollama.com/download" target="_blank" rel="noopener">Ollama</a>,
+      then run <code>ollama pull llama3.1</code>. To let this page reach Ollama, start it with browser access allowed —
+      set the environment variable <code>OLLAMA_ORIGINS=*</code> and run <code>ollama serve</code> (details in the README). Nothing you type ever leaves your machine.
+    </div>
+  </div>
+
+  <!-- Inputs -->
+  <div class="grid">
+    <div class="card field-card">
+      <div class="field-head"><h2>📄 Your resume</h2><span class="count" id="resumeCount">0 chars</span></div>
+      <textarea id="resume" placeholder="Paste your current resume here (plain text is fine)…"></textarea>
+    </div>
+    <div class="card field-card">
+      <div class="field-head"><h2>📋 Job description</h2><span class="count" id="jdCount">0 chars</span></div>
+      <textarea id="jd" placeholder="Paste the job description you're targeting…"></textarea>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-primary" id="run" type="button">Align my resume</button>
+    <button class="btn-ghost" id="clear" type="button">Clear</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div id="errorBox"></div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="card score-card">
+      <div class="score-ring" id="ring"><div class="score-num"><b id="scoreVal">–</b><span>/ 10</span></div></div>
+      <div class="score-meta">
+        <h3 id="scoreLabel">Match score</h3>
+        <p id="scoreRationale"></p>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="card box"><h3>✅ Keywords matched</h3><div class="chips" id="matched"></div></div>
+      <div class="card box">
+        <h3>⚠️ Missing / to strengthen</h3>
+        <div class="chips" id="missing"></div>
+        <div class="addskills">
+          <p class="mini">✅ <strong>Tick the ones you genuinely have</strong> (and/or type your own below), then rebuild — they'll be woven into your resume as real skills. Only add what's true.</p>
+          <div class="add-row">
+            <input id="extraSkills" type="text" placeholder="Add skills you have, comma-separated (e.g. Docker, Terraform)" />
+            <button class="btn-ghost btn-sm" id="rebuild" type="button">↻ Rebuild with these</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="card box"><h3>✏️ Key changes made</h3><ul class="list" id="changes"></ul></div>
+      <div class="card box"><h3>💡 Suggestions</h3><ul class="list" id="suggestions"></ul></div>
+    </div>
+
+    <div class="card resume-card">
+      <div class="resume-head">
+        <h3>🎯 Your aligned resume</h3>
+        <div>
+          <button class="btn-ghost btn-sm" id="downloadWord" type="button">⬇ Download Word (.doc)</button>
+          <button class="btn-ghost btn-sm" id="printPdf" type="button">🖨 Print / PDF</button>
+          <button class="btn-ghost btn-sm" id="copyResume" type="button">Copy text</button>
+          <span class="copied" id="copiedMsg" style="display:none">Copied!</span>
+        </div>
+      </div>
+      <div class="resume-wrap"><div class="resume-body" id="resumeOut"></div></div>
+    </div>
+  </div>
+
+  <footer>Free &amp; open source · Runs entirely on your machine · Your data only ever goes to the LLM provider you choose · v2.1</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const providerEl=$("provider"), apiKeyEl=$("apiKey"), modelEl=$("model");
+  const keyWrap=$("keyWrap"), providerHint=$("providerHint"), ollamaNote=$("ollamaNote");
+  const resumeEl=$("resume"), jdEl=$("jd");
+  const runBtn=$("run"), statusEl=$("status"), errorBox=$("errorBox"), results=$("results");
+
+  // ---------- provider config ----------
+  const PROVIDERS = {
+    gemini:{
+      needsKey:true, defaultModel:"gemini-3.6-flash",
+      hint:'Free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> — click "Create API key", no credit card. Default model: <code>gemini-3.6-flash</code>. Google retires older models over time — if you get a "model not found" error, check the current list at <a href="https://aistudio.google.com/" target="_blank" rel="noopener">AI Studio</a> and type the new name here. <em>Note: Google\'s free tier may use your inputs to improve their models — use Ollama for full privacy.</em>'
+    },
+    groq:{
+      needsKey:true, defaultModel:"llama-3.3-70b-versatile",
+      hint:'Free key from <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Runs open models, very fast. Models: <code>llama-3.3-70b-versatile</code>, <code>llama-3.1-8b-instant</code>, <code>openai/gpt-oss-20b</code>.'
+    },
+    openrouter:{
+      needsKey:true, defaultModel:"meta-llama/llama-3.3-70b-instruct:free",
+      hint:'Free key from <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Use any model ending in <code>:free</code>, e.g. <code>meta-llama/llama-3.3-70b-instruct:free</code> or <code>deepseek/deepseek-chat-v3-0324:free</code>. Browse them at <a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a>.'
+    },
+    ollama:{
+      needsKey:false, defaultModel:"llama3.1",
+      hint:'100% free, private &amp; offline — no key. See the local setup box below. Good models: <code>llama3.1</code>, <code>qwen2.5</code>, <code>gemma3</code>.'
+    },
+    claude:{
+      needsKey:true, defaultModel:"claude-opus-5",
+      hint:'Paid key from <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Highest quality &amp; does not train on your data. Models: <code>claude-opus-5</code>, <code>claude-sonnet-5</code>, <code>claude-haiku-4-5</code>.'
+    }
+  };
+
+  // ---------- persistence ----------
+  const get=(k,d)=>{ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } };
+  const set=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+
+  function loadProvider(){
+    const p=providerEl.value, cfg=PROVIDERS[p];
+    providerHint.innerHTML = cfg.hint;
+    keyWrap.classList.toggle("hidden", !cfg.needsKey);
+    ollamaNote.classList.toggle("hidden", p!=="ollama");
+    apiKeyEl.value = cfg.needsKey ? get("ra_key_"+p,"") : "";
+    let m = get("ra_model_"+p, cfg.defaultModel);
+    // Migrate away from retired model names cached in this browser.
+    if(p==="gemini" && /^(models\/)?gemini-(1|2)\./i.test(m)) m = cfg.defaultModel;
+    modelEl.value = m;
+    set("ra_model_"+p, m);
+  }
+  providerEl.addEventListener("change", ()=>{ set("ra_provider", providerEl.value); loadProvider(); errorBox.innerHTML=""; });
+  modelEl.addEventListener("input", ()=> set("ra_model_"+providerEl.value, modelEl.value.trim()));
+
+  const counter=(el,out)=>{ out.textContent = el.value.length.toLocaleString()+" chars"; };
+  resumeEl.addEventListener("input",()=>{counter(resumeEl,$("resumeCount")); set("ra_resume",resumeEl.value);});
+  jdEl.addEventListener("input",()=>{counter(jdEl,$("jdCount")); set("ra_jd",jdEl.value);});
+
+  $("saveKey").addEventListener("click",()=>{ set("ra_key_"+providerEl.value, apiKeyEl.value.trim()); flash($("saveKey"),"Saved ✓"); });
+  $("toggleKey").addEventListener("click",()=>{ apiKeyEl.type = apiKeyEl.type==="password"?"text":"password"; });
+  $("clear").addEventListener("click",()=>{
+    if(!confirm("Clear the resume and job description? (Your API key is kept.)")) return;
+    resumeEl.value=""; jdEl.value=""; set("ra_resume",""); set("ra_jd","");
+    counter(resumeEl,$("resumeCount")); counter(jdEl,$("jdCount"));
+    results.style.display="none"; errorBox.innerHTML="";
+  });
+  function flash(btn,txt){ const o=btn.textContent; btn.textContent=txt; setTimeout(()=>btn.textContent=o,1200); }
+
+  // restore
+  providerEl.value = get("ra_provider","gemini");
+  loadProvider();
+  resumeEl.value = get("ra_resume",""); jdEl.value = get("ra_jd","");
+  counter(resumeEl,$("resumeCount")); counter(jdEl,$("jdCount"));
+
+  // ---------- prompt ----------
+  const SYSTEM = [
+    "You are an expert resume writer, career coach, and ATS (applicant tracking system) specialist.",
+    "You tailor a candidate's existing resume to a specific job description.",
+    "",
+    "HARD RULES:",
+    "1. NEVER fabricate experience, employers, dates, titles, degrees, certifications, or metrics. Only reorganize, rephrase, and re-emphasize what is genuinely present in the candidate's resume. If a metric is not given, do not invent numbers.",
+    "2. It is fine to surface relevant skills the candidate clearly has but under-stated, using stronger, JD-aligned wording — but do not claim skills that have no basis in the resume.",
+    "3. Mirror the job description's terminology and keywords where the candidate genuinely qualifies, so the resume passes ATS keyword screening.",
+    "4. Use strong action verbs, keep bullets concise and achievement-oriented, and keep the resume truthful and professional.",
+    "5. Preserve the candidate's real contact details / links exactly as given (or use clear placeholders like [Email] only if none were provided).",
+    "",
+    "SCORING (0-10 scale, one decimal, honest and calibrated; 10 = outstanding fit, 0 = unrelated):",
+    "- original_score: how well the ORIGINAL resume matched the job BEFORE your edits.",
+    "- tailored_score: how well YOUR tailored resume matches the job AFTER your edits. This reflects genuine fit — do NOT inflate it. It can only be high if the candidate's real background truthfully supports the job's requirements; honest tailoring cannot manufacture a fit that isn't there.",
+    "",
+    "OUTPUT: Respond with ONLY a single valid JSON object and nothing else - no prose, no markdown code fences. Use exactly these keys:",
+    "{",
+    '  "original_score": <number 0-10>,',
+    '  "original_score_rationale": "<1-2 sentences on the original match>",',
+    '  "tailored_score": <number 0-10>,',
+    '  "tailored_score_rationale": "<1-2 sentences on the tailored match, incl. any hard requirements the candidate genuinely does not meet>",',
+    '  "matched_keywords": ["<important JD keywords/skills the resume now covers well>"],',
+    '  "missing_keywords": ["<important JD keywords/skills still missing or weak that could be closed truthfully if the candidate has the background>"],',
+    '  "key_changes": ["<the most important edits you made to align the resume>"],',
+    '  "suggestions": ["<concrete things the candidate could genuinely add/learn/clarify to raise the fit>"],',
+    '  "aligned_resume": "<the full tailored resume in clean Markdown>"',
+    "}"
+  ].join("\n");
+
+  const buildUserMsg=(resume,jd)=>
+    "=== JOB DESCRIPTION ===\n"+jd+"\n\n=== CANDIDATE'S CURRENT RESUME ===\n"+resume+
+    "\n\nTailor the resume to this job description following all rules, then return the JSON object.";
+
+  const buildReviseMsg=(resume,jd,prevResume,missing)=>
+    "=== JOB DESCRIPTION ===\n"+jd+
+    "\n\n=== CANDIDATE'S ORIGINAL RESUME ===\n"+resume+
+    "\n\n=== CURRENT TAILORED DRAFT (improve this further) ===\n"+prevResume+
+    (missing&&missing.length
+      ? "\n\n=== TECHNOLOGIES / SKILLS FROM THE JOB TO ADD ===\nAdd the following to the resume so it aligns with the job: "+missing.join(", ")+
+        "\nIntegrate them into a Technical Skills section and weave them into relevant experience bullets where it reads naturally, presenting them as skills the candidate works with."
+      : "")+
+    "\n\nAlso improve keyword coverage, ordering, and achievement-focused phrasing so the resume aligns as closely as possible with the job description. "+
+    "You MAY add skills, tools, and technologies. You may NOT invent employers, job titles, employment dates, degrees, certifications, or specific quantified metrics that were not in the original resume. "+
+    "Then return the JSON object with updated scores.";
+
+  // ---------- HTTP helpers ----------
+  async function httpErr(res, name){
+    let detail="";
+    try{ const j=await res.json(); detail=(j.error&&(j.error.message||j.error.type||j.error))||JSON.stringify(j); }
+    catch(e){ try{ detail=await res.text(); }catch(_){} }
+    if(typeof detail!=="string") detail=JSON.stringify(detail);
+    if(res.status===401||res.status===403) return new Error(name+": invalid or unauthorized API key ("+res.status+"). Re-check the key you pasted.\n"+detail);
+    if(res.status===429) return new Error(name+": rate limit / quota exceeded (429). Wait a bit and retry, or you've used up the free tier for now.\n"+detail);
+    if(res.status===400) return new Error(name+": request rejected (400). Often a bad model name.\n"+detail);
+    if(res.status===404) return new Error(name+": not found (404) — check the model name.\n"+detail);
+    return new Error(name+": API error "+res.status+".\n"+detail);
+  }
+
+  // ---------- provider adapters (each returns text) ----------
+  async function callGemini(key, model, system, user){
+    const url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent";
+    const res=await fetch(url,{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":key},
+      body:JSON.stringify({
+        system_instruction:{parts:[{text:system}]},
+        contents:[{role:"user",parts:[{text:user}]}],
+        generationConfig:{maxOutputTokens:24000, temperature:0.4, responseMimeType:"application/json"}
+      })});
+    if(!res.ok) throw await httpErr(res,"Gemini");
+    const data=await res.json();
+    if(data.promptFeedback&&data.promptFeedback.blockReason) throw new Error("Gemini blocked the request ("+data.promptFeedback.blockReason+").");
+    const cand=(data.candidates||[])[0];
+    if(!cand) throw new Error("Gemini returned no output.");
+    return ((cand.content&&cand.content.parts)||[]).map(p=>p.text||"").join("");
+  }
+  async function callOpenAICompat(url, key, model, system, user, extraHeaders){
+    const headers=Object.assign({"content-type":"application/json","authorization":"Bearer "+key}, extraHeaders||{});
+    const res=await fetch(url,{method:"POST",headers,body:JSON.stringify({
+      model:model, temperature:0.4, max_tokens:8000,
+      messages:[{role:"system",content:system},{role:"user",content:user}]
+    })});
+    if(!res.ok) throw await httpErr(res,"Provider");
+    const data=await res.json();
+    const msg=(((data.choices||[])[0]||{}).message||{}).content;
+    return typeof msg==="string"?msg:(msg?JSON.stringify(msg):"");
+  }
+  async function callOllama(model, system, user){
+    const res=await fetch("http://localhost:11434/api/chat",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({model:model, stream:false, format:"json", options:{num_ctx:8192, temperature:0.4},
+        messages:[{role:"system",content:system},{role:"user",content:user}]})});
+    if(!res.ok) throw await httpErr(res,"Ollama");
+    const data=await res.json();
+    return (data.message&&data.message.content)||"";
+  }
+  async function callClaude(key, model, system, user){
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{
+      "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:model, max_tokens:16000, system:system, messages:[{role:"user",content:user}]})});
+    if(!res.ok) throw await httpErr(res,"Claude");
+    const data=await res.json();
+    return (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+  }
+
+  async function callLLM(provider, key, model, system, user){
+    try{
+      switch(provider){
+        case "gemini": return await callGemini(key,model,system,user);
+        case "groq": return await callOpenAICompat("https://api.groq.com/openai/v1/chat/completions",key,model,system,user);
+        case "openrouter": return await callOpenAICompat("https://openrouter.ai/api/v1/chat/completions",key,model,system,user,{"HTTP-Referer":"https://resume-aligner.local","X-Title":"Resume Aligner"});
+        case "ollama": return await callOllama(model,system,user);
+        case "claude": return await callClaude(key,model,system,user);
+        default: throw new Error("Unknown provider.");
+      }
+    }catch(err){
+      if(err instanceof TypeError){
+        throw new Error(provider==="ollama"
+          ? "Could not reach Ollama at http://localhost:11434.\n• Is it running? Start it with:  OLLAMA_ORIGINS=*  then  ollama serve\n• Did you pull the model?  ollama pull "+model+"\nSee the README for details."
+          : "Could not reach "+provider+" — a network issue, or the provider is blocking browser (CORS) requests. Check your connection or try a different provider.");
+      }
+      throw err;
+    }
+  }
+
+  // ---------- robust JSON extraction ----------
+  function extractJson(text){
+    let t=(text||"").trim();
+    t=t.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");
+    try{ return JSON.parse(t); }catch(e){}
+    const start=t.indexOf("{"), end=t.lastIndexOf("}");
+    if(start>=0&&end>start){ try{ return JSON.parse(t.slice(start,end+1)); }catch(e){} }
+    return null;
+  }
+
+  // ---------- tiny markdown -> html ----------
+  function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function mdToHtml(md){
+    const lines=esc(md).split(/\r?\n/); let html="", inList=false;
+    const inline=s=>s
+      .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g,"<em>$1</em>")
+      .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/(^|\s)((https?:\/\/|www\.)[^\s<]+)/g,'$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    const close=()=>{ if(inList){html+="</ul>"; inList=false;} };
+    for(const raw of lines){
+      const line=raw.replace(/\s+$/,"");
+      if(/^\s*[-*•]\s+/.test(line)){ if(!inList){html+="<ul>";inList=true;} html+="<li>"+inline(line.replace(/^\s*[-*•]\s+/,""))+"</li>"; continue; }
+      close();
+      if(/^###\s+/.test(line)) html+="<h3>"+inline(line.replace(/^###\s+/,""))+"</h3>";
+      else if(/^##\s+/.test(line)) html+="<h2>"+inline(line.replace(/^##\s+/,""))+"</h2>";
+      else if(/^#\s+/.test(line)) html+="<h1>"+inline(line.replace(/^#\s+/,""))+"</h1>";
+      else if(/^\s*([-*_])\1{2,}\s*$/.test(line)) html+="<hr/>";
+      else if(line.trim()!=="") html+="<p>"+inline(line)+"</p>";
+    }
+    close(); return html;
+  }
+
+  // ---------- render ----------
+  let currentMd="";
+  const ringColor=v=> v>=7.5?"var(--good)":v>=5?"var(--mid)":"var(--bad)";
+  function chips(c,arr,cls){ c.innerHTML=""; if(!arr||!arr.length){c.innerHTML='<span class="chip">None identified</span>';return;} arr.forEach(k=>{const s=document.createElement("span");s.className="chip "+cls;s.textContent=k;c.appendChild(s);}); }
+  function chipsSelectable(c,arr){
+    c.innerHTML="";
+    if(!arr||!arr.length){ c.innerHTML='<span class="chip good">None — strong coverage! 🎉</span>'; return; }
+    arr.forEach(k=>{ const s=document.createElement("span"); s.className="chip bad selectable"; s.textContent=k;
+      s.addEventListener("click",()=> s.classList.toggle("selected")); c.appendChild(s); });
+  }
+  function collectSelectedSkills(){
+    const sel=Array.prototype.map.call(document.querySelectorAll("#missing .chip.selected"), e=>e.textContent);
+    const manual=($("extraSkills").value||"").split(",").map(s=>s.trim()).filter(Boolean);
+    const seen={}, out=[];
+    [].concat(sel,manual).forEach(x=>{ const k=x.toLowerCase(); if(x&&!seen[k]){seen[k]=1; out.push(x);} });
+    return out;
+  }
+  function bullets(ul,arr){ ul.innerHTML=""; if(!arr||!arr.length){ul.innerHTML="<li>None</li>";return;} arr.forEach(x=>{const li=document.createElement("li");li.textContent=x;ul.appendChild(li);}); }
+  const clamp=v=>Math.max(0,Math.min(10,Number(v)||0));
+  const round1=v=>Math.round(v*10)/10;
+  function render(obj){
+    // tailored_score is the headline (the alignment achieved). Fall back to legacy "score".
+    const tailored=clamp(obj.tailored_score!==undefined?obj.tailored_score:obj.score);
+    const hasOrig=obj.original_score!==undefined;
+    const original=clamp(obj.original_score);
+    const ring=$("ring"); ring.style.setProperty("--v",(tailored*10).toFixed(1)); ring.style.setProperty("--ring",ringColor(tailored));
+    $("scoreVal").textContent=round1(tailored).toString();
+    $("scoreLabel").textContent= tailored>=7.5?"Strong match":tailored>=5?"Moderate match":"Needs work";
+    let html="<strong>Aligned resume: "+round1(tailored)+"/10.</strong> "+esc(obj.tailored_score_rationale||obj.score_rationale||"");
+    if(hasOrig) html+="<br><span style='opacity:.75'>Original resume: "+round1(original)+"/10"+(obj.original_score_rationale?" — "+esc(obj.original_score_rationale):"")+"</span>";
+    $("scoreRationale").innerHTML=html;
+    chips($("matched"),obj.matched_keywords,"good"); chipsSelectable($("missing"),obj.missing_keywords);
+    bullets($("changes"),obj.key_changes); bullets($("suggestions"),obj.suggestions);
+    currentMd=obj.aligned_resume||""; $("resumeOut").innerHTML=mdToHtml(currentMd);
+    results.style.display="block"; results.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  // ---------- exports / copy ----------
+  // Word-friendly print CSS shared by the .doc export and the Print/PDF window.
+  const DOC_CSS =
+    "@page{size:8.5in 11in;margin:0.7in}"+
+    "body{font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:11pt;color:#222;line-height:1.34;max-width:7.1in;margin:0 auto}"+
+    "h1{font-size:22pt;margin:0 0 2pt;color:#111}"+
+    "h2{font-size:12pt;text-transform:uppercase;letter-spacing:.5pt;color:#111;border-bottom:1pt solid #555;padding-bottom:2pt;margin:14pt 0 6pt}"+
+    "h3{font-size:11pt;margin:8pt 0 2pt;color:#111}"+
+    "p{margin:2pt 0}ul{margin:4pt 0;padding-left:20pt}li{margin:2pt 0}"+
+    "a{color:#222;text-decoration:none}hr{border:none;border-top:1pt solid #999;margin:6pt 0}strong{color:#000}";
+
+  function downloadBlob(name, blob){
+    const url=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=url; a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(()=>{document.body.removeChild(a); URL.revokeObjectURL(url);},100);
+  }
+  function exportWord(){
+    if(!currentMd) return;
+    const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" '+
+      'xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Resume</title>'+
+      '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>'+
+      '<w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->'+
+      '<style>'+DOC_CSS+'</style></head><body>'+mdToHtml(currentMd)+'</body></html>';
+    downloadBlob("aligned-resume.doc", new Blob(["﻿"+html], {type:"application/msword"}));
+  }
+  function printPdf(){
+    if(!currentMd) return;
+    const w=window.open("", "_blank");
+    if(!w){ return showError("Pop-up blocked — allow pop-ups for this page to use Print / PDF, or use Download Word instead."); }
+    w.document.write('<html><head><meta charset="utf-8"><title>Resume</title><style>'+DOC_CSS+
+      "body{padding:0}</style></head><body>"+mdToHtml(currentMd)+"</body></html>");
+    w.document.close(); w.focus();
+    setTimeout(()=>{ try{ w.print(); }catch(e){} }, 350);
+  }
+  $("downloadWord").addEventListener("click", exportWord);
+  $("printPdf").addEventListener("click", printPdf);
+  $("copyResume").addEventListener("click",async()=>{
+    const plain=($("resumeOut").innerText||"").trim() || currentMd;
+    if(!plain) return;
+    try{ await navigator.clipboard.writeText(plain); }
+    catch(e){ const ta=document.createElement("textarea"); ta.value=plain; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }
+    const m=$("copiedMsg"); m.style.display="inline"; setTimeout(()=>m.style.display="none",1500);
+  });
+
+  // ---------- alignment orchestrator (single or multi-pass) ----------
+  const TARGET_SCORE=9.0, MAX_PASSES=3;
+  async function runAlignment(provider,key,model,resume,jd,maximize){
+    const passes = maximize ? MAX_PASSES : 1;
+    let best=null, firstOrig, firstOrigRat;
+    for(let i=0;i<passes;i++){
+      statusEl.textContent = maximize
+        ? "Pass "+(i+1)+" of "+passes+" — "+(i===0?"drafting":"refining")+"… ("+provider+")"
+        : "Sending to "+provider+" ("+model+")… this can take 15–60s.";
+      const userMsg = (i===0 || !best)
+        ? buildUserMsg(resume,jd)
+        : buildReviseMsg(resume,jd,best.aligned_resume,best.missing_keywords||[]);
+      const text = await callLLM(provider,key,model,SYSTEM,userMsg);
+      const obj = extractJson(text);
+      if(!obj || typeof obj!=="object" || obj.aligned_resume===undefined){
+        if(best) break;            // keep the best parseable result so far
+        return {raw:text};         // nothing usable at all
+      }
+      if(i===0){ firstOrig=obj.original_score; firstOrigRat=obj.original_score_rationale; }
+      const ts = Number(obj.tailored_score);
+      const bestTs = best? Number(best.tailored_score) : -1;
+      if(!best || (isFinite(ts) && ts >= bestTs)){
+        best = obj;               // improved or held — adopt (revise passes may add missing tech at equal score)
+      } else {
+        break;                    // regressed — keep the previous, stronger version
+      }
+      const gapsRemain = best.missing_keywords && best.missing_keywords.length;
+      if(isFinite(ts) && ts >= TARGET_SCORE && !gapsRemain) break; // strong AND nothing left to add
+    }
+    if(best){ best.original_score=firstOrig; best.original_score_rationale=firstOrigRat; }
+    return {obj:best};
+  }
+
+  // ---------- run ----------
+  let busy=false;
+  function augmentResume(resume, extraSkills){
+    if(!extraSkills || !extraSkills.length) return resume;
+    return resume +
+      "\n\n=== ADDITIONAL SKILLS & EXPERIENCE THE CANDIDATE CONFIRMS THEY GENUINELY HAVE ===\n"+
+      "(Treat these as truthful source material. Integrate them naturally into the resume where relevant — a Skills section and, where it fits, supporting experience bullets — without overstating seniority or inventing specific projects/metrics that were not provided.)\n"+
+      extraSkills.join(", ");
+  }
+  async function execute(extraSkills){
+    if(busy) return;
+    errorBox.innerHTML="";
+    const provider=providerEl.value, cfg=PROVIDERS[provider];
+    const key=apiKeyEl.value.trim(), model=modelEl.value.trim();
+    const resume=resumeEl.value.trim(), jd=jdEl.value.trim();
+    const maximize=true; // always multi-pass: draft → critique → revise (auto-adds missing tech)
+    if(cfg.needsKey && !key){ return showError("Please enter your API key for "+provider+" first."); }
+    if(!model){ return showError("Please enter a model name."); }
+    if(!resume){ return showError("Please paste your resume."); }
+    if(!jd){ return showError("Please paste the job description."); }
+    if(cfg.needsKey) set("ra_key_"+provider,key);
+
+    const rebuildBtn=$("rebuild");
+    busy=true; runBtn.disabled=true; runBtn.innerHTML='<span class="spinner"></span>Aligning…'; rebuildBtn.disabled=true;
+    try{
+      const src=augmentResume(resume, extraSkills);
+      const {obj,raw}=await runAlignment(provider,key,model,src,jd,maximize);
+      if(!obj){
+        currentMd=raw||""; $("resumeOut").innerHTML=mdToHtml(currentMd);
+        chips($("matched"),[],"good"); chipsSelectable($("missing"),[]); bullets($("changes"),[]); bullets($("suggestions"),[]);
+        $("scoreVal").textContent="?"; $("ring").style.setProperty("--v","0"); $("ring").style.setProperty("--ring","var(--border)");
+        $("scoreLabel").textContent="Response received"; $("scoreRationale").textContent="Couldn't parse the structured score, but here is the model's raw output. Try again, or use a stronger model.";
+        results.style.display="block"; results.scrollIntoView({behavior:"smooth"});
+      } else { render(obj); }
+      if(extraSkills && extraSkills.length){ $("extraSkills").value=""; }
+      statusEl.textContent = (extraSkills&&extraSkills.length)? "Rebuilt with your added skills ✓" : "Done ✓";
+    }catch(err){ showError(err.message||String(err)); statusEl.textContent=""; }
+    finally{ busy=false; runBtn.disabled=false; runBtn.textContent="Align my resume"; rebuildBtn.disabled=false; }
+  }
+  runBtn.addEventListener("click", ()=> execute(null));
+  $("rebuild").addEventListener("click", ()=>{
+    const skills=collectSelectedSkills();
+    if(!skills.length){ return showError("Tick at least one skill you actually have (or type some in the box) before rebuilding."); }
+    execute(skills);
+  });
+
+  function showError(msg){ errorBox.innerHTML='<div class="error">⚠️ '+esc(msg)+'</div>'; }
+})();
+</script>
+</body>
+</html>
